@@ -1,0 +1,7 @@
+yfinance
+pandas
+pyyaml
+python-dotenv
+google-genai
+requests
+beautifulsoup4

@@ -1,0 +1,15 @@
+gemini:
+  model_name: "gemini-2.0-flash"
+  temperature: 0.2
+  max_output_tokens: 2048
+
+# 預設台股追蹤清單
+default_stocks:
+  - "2330" # 台積電
+  - "2317" # 鴻海
+  - "2454" # 聯發科
+
+# 資料源設定
+data_source:
+  twse_base_url: "https://www.twse.com.tw/exchangeReport"
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
