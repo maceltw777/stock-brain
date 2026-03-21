@@ -50,6 +50,18 @@ class PriceAnalysisSkill(BaseSkill):
             latest = df.iloc[-1]
             prev = df.iloc[-2]
 
+            # 4. 計算相對強度 (Relative Strength) 比較大盤
+            try:
+                market_df = yf.download("^TWII", period="6mo", interval="1d", progress=False)
+                if isinstance(market_df.columns, pd.MultiIndex):
+                    market_df.columns = market_df.columns.get_level_values(0)
+                
+                stock_perf = (latest['Close'] - df['Close'].iloc[-20]) / df['Close'].iloc[-20]
+                market_perf = (market_df['Close'].iloc[-1] - market_df['Close'].iloc[-20]) / market_df['Close'].iloc[-20]
+                rs_score = round(float(stock_perf - market_perf) * 100, 2)
+            except:
+                rs_score = 0.0
+
             return {
                 "symbol": symbol,
                 "current_price": round(float(latest['Close']), 2),
@@ -61,7 +73,8 @@ class PriceAnalysisSkill(BaseSkill):
                 "d": round(float(latest['D']), 2),
                 "volume": int(latest['Volume']),
                 "volume_ma5": int(df['Volume'].tail(5).mean()),
-                "trend": "多頭" if latest['MA5'] > latest['MA20'] > latest['MA60'] else "空頭" if latest['MA5'] < latest['MA20'] < latest['MA60'] else "盤整"
+                "trend": "多頭" if latest['MA5'] > latest['MA20'] > latest['MA60'] else "空頭" if latest['MA5'] < latest['MA20'] < latest['MA60'] else "盤整",
+                "rs_score": rs_score
             }
         except Exception as e:
             return {"error": str(e)}
@@ -70,9 +83,11 @@ class PriceAnalysisSkill(BaseSkill):
         if "error" in results:
             return f"### 技術面分析\n無法獲取數據: {results['error']}"
         
+        rs_text = f"{results['rs_score']}% (強於大盤)" if results['rs_score'] > 0 else f"{results['rs_score']}% (弱於大盤)"
         return f"""### 技術面分析報告 (步驟 2)
 - **當前股價**: {results['current_price']} ({results['change_percent']}%)
 - **均線趨勢**: {results['trend']} (MA5: {results['ma5']}, MA20: {results['ma20']}, MA60: {results['ma60']})
 - **KD 指標**: K={results['k']}, D={results['d']} ({'超買' if results['k'] > 80 else '超賣' if results['k'] < 20 else '常態'})
 - **成交量**: {results['volume']:,} (5日均量: {results['volume_ma5']:,})
+- **相對強度 (RS)**: {rs_text}
 """
