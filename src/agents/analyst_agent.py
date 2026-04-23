@@ -15,7 +15,10 @@ class AnalystAgent:
         # 載入設定
         gemini_config = config.get_gemini_config()
         api_key = (gemini_config.get("api_key") or "").strip()
-        self.client = genai.Client(api_key=api_key)
+        if api_key:
+            self.client = genai.Client(api_key=api_key)
+        else:
+            self.client = None
         
         # 讀取核心邏輯
         self.strategy_core = config.get_long_prompt("strategy_core")
@@ -49,7 +52,16 @@ class AnalystAgent:
         macro_report = self.macro_skill.get_report(macro_results)
         price_report = self.price_skill.get_report(price_results)
         
-        all_queries = search_info['queries'] + inst_info['queries']
+        # 擴充搜尋關鍵字：加入期貨、融資、官股等維度
+        extended_queries = [
+            "台指期 外資留倉口數 今日",
+            "台股 Put/Call Ratio 最新走勢",
+            "今日 融資餘額 增減 變動",
+            "八大官股行庫 買賣超 今日",
+            "台股 族群漲跌 分佈趨勢"
+        ]
+        all_queries = search_info['queries'] + inst_info['queries'] + extended_queries
+        
         full_context = f"""
 當前標的: {symbol} {stock_name}
 
@@ -60,6 +72,12 @@ class AnalystAgent:
 請根據上述實時數據（特別注意日圓、台幣、WTI原油、NVDA、US10Y 與 VIX 之間的關聯），
 並額外搜尋以下關鍵資訊（含過去 12 小時最新動態）後，依據『三層訓練法』進行深度分析：
 關鍵字: {", ".join(all_queries)}
+
+### 額外查核要求：
+1. 期貨籌碼：外資空單是否異常？Put/Call Ratio 反映的情緒為何？
+2. 洗盤狀態：今日震盪後，融資是否出現大規模減肥？官股是否有護盤跡象？
+3. 結構問題：今日市場是權值股獨撐，還是有其他族群帶頭齊揚？
+
 分析要求: {search_info['instruction']} 並且包含 {inst_info['instruction']}
 
 ### 矛盾偵測提醒 (Anomaly Detection)
@@ -67,6 +85,9 @@ class AnalystAgent:
 """
 
         # 4. 執行 AI 綜合研判
+        if not self.client:
+            raise Exception("No API key provided. AI analysis is disabled.")
+            
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=full_context,

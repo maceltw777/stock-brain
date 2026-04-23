@@ -1,4 +1,4 @@
-#!/Users/macel/Desktop/stock-brain/venv/bin/python3.12
+#!/Users/eyliu/Desktop/stock-brain/venv/bin/python3.13
 # -*- coding: utf-8 -*-
 import re
 import sys

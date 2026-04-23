@@ -14,11 +14,15 @@ class PriceAnalysisSkill(BaseSkill):
         """
         獲取歷史股價並計算技術指標。
         """
-        # 台股在 yfinance 需要加上 .TW 或 .TWO
-        ticker_symbol = f"{symbol}.TW"
+        # 決定正確的 ticker symbol
+        if symbol.startswith("^") or "." in symbol:
+            ticker_symbol = symbol
+        else:
+            ticker_symbol = f"{symbol}.TW"
+            
         try:
             df = yf.download(ticker_symbol, period="6mo", interval="1d", progress=False)
-            if df.empty:
+            if df.empty and not symbol.startswith("^") and "." not in symbol:
                 # 嘗試興櫃/上櫃代碼
                 df = yf.download(f"{symbol}.TWO", period="6mo", interval="1d", progress=False)
             

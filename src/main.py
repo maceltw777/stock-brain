@@ -34,9 +34,9 @@ def main():
 
     except Exception as e:
         error_msg = str(e)
-        # 捕捉 API 額度耗盡或網路錯誤
-        if "RESOURCE_EXHAUSTED" in error_msg or "429" in error_msg:
-            print("\n⚠️ Gemini API 額度已耗盡，改為顯示原始數據報告：")
+        # 捕捉 API 額度耗盡、網路錯誤或 API Key 缺失
+        if any(keyword in error_msg for keyword in ["RESOURCE_EXHAUSTED", "429", "API key", "API_KEY"]):
+            print(f"\n⚠️ Gemini API 無法使用 ({error_msg})，改為顯示原始數據報告：")
             
             # 直接使用已經初始化過的 agent (如果有的話) 或重新建立一個
             try:
