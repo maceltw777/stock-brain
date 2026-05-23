@@ -1,0 +1,20 @@
+# 敏感金鑰與環境變數
+.env
+
+# Antigravity 助理工具中介資料與會話快取
+.antigravitycli/
+
+# Python 虛擬環境與編譯快取
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# 本地總經報告（PDF檔案通常較大且屬個人數據，不建議 Commit 入庫）
+data/reports/*.pdf
+data/reports/*.txt
+data/reports/*.md
+!data/reports/.gitkeep
+
+# 系統暫存檔
+.DS_Store
