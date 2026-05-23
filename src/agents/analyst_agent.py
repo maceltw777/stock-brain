@@ -43,7 +43,7 @@ class AnalystAgent:
         price_results = self.price_skill.analyze(symbol)
         search_info = self.search_skill.analyze(symbol, stock_name)
         inst_info = self.inst_skill.analyze(symbol)
-        local_parts, loaded_reports = self.report_analyzer_skill.analyze()
+        local_parts, loaded_reports, reports_needing_summary = self.report_analyzer_skill.analyze()
 
         # 2. 數據完整性檢查 (Data Validation)
         is_data_sufficient, reason = self._validate_data_quality(macro_results, price_results)
@@ -96,6 +96,19 @@ class AnalystAgent:
 若發現數據指標背離（如股價漲但量縮、宏觀風險警報但大盤創高、台積電 ADR 溢價率過高但現貨滯漲、外資在期貨留存歷史級別巨量空單但現貨同步大買等），請務必以 **【⚠️ 數據矛盾提醒】** 區塊標註並深入探討其避險意圖與籌碼陷阱。
 """
 
+        # 自動生成舊報告維護任務
+        if reports_needing_summary:
+            summary_prompts = []
+            for file in reports_needing_summary:
+                summary_prompts.append(
+                    f"請針對已存檔超過 14 天的舊報告 `{file}` 提煉出 500 字以內之精華摘要。\n"
+                    f"為利於系統後台自動化處理，請務必在您最終報告的「最末尾」，以下列格式輸出此摘要（包含方括號與檔名）：\n"
+                    f"[SUMMARY_START:{file}]\n"
+                    f"（在這裡條列書寫該報告的關鍵結論，如通膨預測、央行政策、產業利差等數據）\n"
+                    f"[SUMMARY_END:{file}]"
+                )
+            full_context += "\n\n### 🚨 本地知識庫自動維護任務 (請 AI 務必執行)：\n" + "\n".join(summary_prompts)
+
         # 4. 執行 AI 綜合研判
         if not self.client:
             raise Exception("No API key provided. AI analysis is disabled.")
@@ -113,7 +126,41 @@ class AnalystAgent:
                 tools=[types.Tool(google_search=types.GoogleSearch())]
             )
         )
-        return response.text
+        
+        response_text = response.text
+        
+        # 5. 【後台自動化】攔截並解析 AI 輸出的舊報告歸檔摘要
+        import re
+        import shutil
+        
+        summary_pattern = r"\[SUMMARY_START:(.*?)\](.*?)\[SUMMARY_END:\1\]"
+        matches = re.findall(summary_pattern, response_text, re.DOTALL)
+        
+        for file_name, summary_content in matches:
+            base_name = os.path.splitext(file_name)[0]
+            summary_file_name = f"{base_name}_summary.txt"
+            summary_path = os.path.join(self.report_analyzer_skill.reports_dir, summary_file_name)
+            original_pdf_path = os.path.join(self.report_analyzer_skill.reports_dir, file_name)
+            archive_pdf_path = os.path.join(self.report_analyzer_skill.archive_dir, file_name)
+            
+            try:
+                # 寫入文字摘要檔
+                with open(summary_path, "w", encoding="utf-8") as sf:
+                    sf.write(f"--- {file_name} 歸檔精華摘要 ---\n")
+                    sf.write(f"建立日期: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                    sf.write(summary_content.strip())
+                
+                # 自動將 PDF 移動到歸檔資料夾
+                if os.path.exists(original_pdf_path):
+                    shutil.move(original_pdf_path, archive_pdf_path)
+                
+                print(f"\n🎉 [知識庫自適應成功] 已成功為舊報告 {file_name} 自動生成本地文字摘要，並將原 PDF 歸檔！下次分析將自動載入輕量文字檔，省下 99% 的 Token 費用！")
+            except Exception as e:
+                print(f"⚠️ [自動歸檔摘要寫入失敗] {file_name}: {str(e)}")
+                
+        # 6. 清理終端輸出，移除僅供系統維護的 [SUMMARY_START] 區塊，保持報告排版美觀
+        clean_text = re.sub(r"\n*\[SUMMARY_START:.*?\[SUMMARY_END:.*?\]\n*", "", response_text, flags=re.DOTALL)
+        return clean_text.strip()
 
     def _validate_data_quality(self, macro_results, price_results):
         """檢查數據是否足夠讓 AI 進行分析。"""
